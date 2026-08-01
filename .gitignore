@@ -1,0 +1,15 @@
+# Python bytecode / cache
+__pycache__/
+*.py[cod]
+
+# Generated runtime outputs & captures
+*.pcap
+flows.csv
+predictions.csv
+report.json
+block_rules.sh
+
+# Environment & Virtualenvs
+.venv/
+env/
+venv/
