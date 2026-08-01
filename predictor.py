@@ -21,11 +21,6 @@ def parse_args():
 
 
 def heuristic_predict(df_features):
-    """Fallback heuristic classifier if ML model file is not present:
-       0: Application Attack
-       1: Benign
-       2: Volumetric Attack
-    """
     preds = []
     for _, row in df_features.iterrows():
         pkts_s = row.get("Flow Packets/s", 0)
@@ -33,11 +28,11 @@ def heuristic_predict(df_features):
         bytes_s = row.get("Flow Bytes/s", 0)
 
         if pkts_s > 500 or bytes_s > 500000:
-            preds.append(2)  # Volumetric
+            preds.append(2)
         elif syn_cnt > 10 or pkts_s > 100:
-            preds.append(0)  # Application / SYN flood
+            preds.append(0)
         else:
-            preds.append(1)  # Benign
+            preds.append(1)
     return np.array(preds)
 
 
@@ -55,11 +50,9 @@ def main():
         print("[WARN] Flows CSV is empty. No flows to evaluate.")
         sys.exit(0)
 
-    # CLEAN DATA
     df = df.replace([np.inf, -np.inf], 0)
     df = df.fillna(0)
 
-    # FEATURES (MATCH TRAINING)
     features = [
         "Protocol",
         "Flow Duration",
@@ -78,13 +71,11 @@ def main():
         "RST Flag Count"
     ]
 
-    # CHECK FEATURES
     missing = [col for col in features if col not in df.columns]
     if missing:
         print("[ERROR] Missing required feature columns:", missing)
         sys.exit(1)
 
-    # REMOVE NOISE FLOWS
     df = df[
         (df["Flow Packets/s"] > args.min_packets) |
         (df["SYN Flag Count"] > args.min_syn)
@@ -96,13 +87,11 @@ def main():
 
     X = df[features]
 
-    # DEBUG STATS
     print("\n[STATS] Feature Stats:")
     print(f"  - Max Flow Packets/s: {X['Flow Packets/s'].max():.2f}")
     print(f"  - Max Flow Bytes/s:   {X['Flow Bytes/s'].max():.2f}")
     print(f"  - Max SYN Count:      {X['SYN Flag Count'].max()}")
 
-    # LOAD MODEL OR HEURISTIC FALLBACK
     model = None
     if os.path.exists(args.model):
         try:
@@ -125,11 +114,9 @@ def main():
 
     df["prediction"] = preds
 
-    # Save labeled flows to CSV
     df.to_csv(args.output, index=False)
     print(f"[SUCCESS] Saved predictions to '{args.output}'")
 
-    # LABEL COUNTS
     benign = df[df["prediction"] == 1]
     app_attack = df[df["prediction"] == 0]
     vol_attack = df[df["prediction"] == 2]
@@ -141,7 +128,6 @@ def main():
     print(f"  - Application Attacks:   {len(app_attack)}")
     print(f"  - Volumetric Attacks:    {len(vol_attack)}")
 
-    # ATTACK DETECTION
     attacks = df[df["prediction"] != 1]
     report_data = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -159,7 +145,6 @@ def main():
     else:
         print("\n[ALERT] ATTACK DETECTED!")
 
-        # FIND ATTACKERS BASED ON TRAFFIC VOLUME
         attacker_scores = {}
 
         if "src_ip" in attacks.columns:
@@ -168,17 +153,14 @@ def main():
                 packets = row["Total Fwd Packets"]
                 attacker_scores[src] = attacker_scores.get(src, 0) + packets
 
-            # SORT ATTACKERS
             sorted_attackers = sorted(attacker_scores.items(), key=lambda x: x[1], reverse=True)
 
-            # REMOVE SERVER IP
             attackers = [ip for ip, _ in sorted_attackers if ip != args.server_ip]
 
             print(f"\n[ATTACKERS] Top Attacker IPs (excluding host {args.server_ip}):")
             for ip in attackers[:5]:
                 print(f"  - {ip}")
 
-            # MAJORITY ATTACK TYPE PER IP
             print("\n[CLASSIFICATION] Attack Type per IP:")
             firewall_rules = ["#!/bin/bash", "# Auto-generated DDoS Mitigation Script", ""]
 
@@ -208,7 +190,6 @@ def main():
                 firewall_rules.append(f"echo 'Blocking attacker IP: {ip} ({label})'")
                 firewall_rules.append(f"sudo iptables -A INPUT -s {ip} -j DROP")
 
-            # EXPORT FIREWALL SCRIPT
             if args.export_rules:
                 with open(args.export_rules, "w") as f:
                     f.write("\n".join(firewall_rules) + "\n")
@@ -216,7 +197,6 @@ def main():
         else:
             print("[WARN] 'src_ip' column not present in input flows CSV.")
 
-    # EXPORT JSON REPORT
     if args.json_report:
         with open(args.json_report, "w") as f:
             json.dump(report_data, f, indent=2)
@@ -225,4 +205,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

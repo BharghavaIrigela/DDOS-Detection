@@ -50,7 +50,6 @@ def main():
             total_packets_parsed += 1
 
             try:
-                # Deduplicate (Mininet flooding fix)
                 pkt_id = (
                     pkt[IP].src,
                     pkt[IP].dst,
@@ -74,10 +73,8 @@ def main():
                     sport = pkt[UDP].sport
                     dport = pkt[UDP].dport
 
-                # time-based flow split
                 time_bucket = int(pkt.time // args.timeout)
 
-                # bidirectional flow
                 if (src, sport) <= (dst, dport):
                     key = (src, dst, sport, dport, proto, time_bucket)
                     direction = "fwd"
@@ -98,7 +95,6 @@ def main():
                     flow["bwd_pkts"] += 1
                     flow["bwd_bytes"] += pkt_len
 
-                # TCP flags
                 if TCP in pkt:
                     flags = pkt[TCP].flags
                     if flags & 0x02:
@@ -134,7 +130,6 @@ def main():
         total_packets = flow["fwd_pkts"] + flow["bwd_pkts"]
         total_bytes = flow["fwd_bytes"] + flow["bwd_bytes"]
 
-        # rates per second
         flow_pkts_s = total_packets / duration
         flow_bytes_s = total_bytes / duration
 
@@ -142,7 +137,7 @@ def main():
 
         data.append([
             proto,
-            duration * 1e6,  # microseconds (important)
+            duration * 1e6,
             flow["fwd_pkts"],
             flow["bwd_pkts"],
             flow["fwd_bytes"],
@@ -184,7 +179,6 @@ def main():
 
     raw_flow_count = len(df)
 
-    # Remove noise
     df = df[
         (df["Flow Packets/s"] > args.min_packets) |
         (df["SYN Flag Count"] > args.min_syn)
@@ -198,4 +192,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
